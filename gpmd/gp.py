@@ -175,7 +175,7 @@ class CGP(GP):
             plt.fill_between(self.x_extr[:, 0][mask], self.f_extr[mask] + std, self.f_extr[mask] - std, fc='grey',
                              alpha=.3, label="$±\sigma$")
         if x_true is not None and y_true is not None:
-            plt.plot(x_true[:, 0][x_true[:, 1] == l], y_true[x_true[:, 1] == l], 'r--', label='True $f$ (Test)')
+            plt.plot(x_true, y_true, 'r--', label='True $f$ (Test)')
 
         plt.plot(self.x_extr[:, 0][mask], self.f_extr[mask], 'g-', label='$f_{*}$ (Predictive Post. Mean)')
 
