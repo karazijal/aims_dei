@@ -23,7 +23,10 @@ def marginal_only(X, y, k, sigma, jitter=0):
 
 def slow(X, y, k, sigma, x_star, jitter=0):
     """
-    Fit GP using matrix inverse
+    Fit GP using matrix inverse, i.e. simpler maths.
+
+    Ended up having to use Cholesky factor anyway as calculating determinants was returning results
+    either entirely or _very_ close to zero causing `log` to blow up.
     """
     K = k(X, X) + (sigma ** 2 + jitter) * np.eye(X.shape[0])
     _check_condition(K)
@@ -113,7 +116,7 @@ class GP:
         plt.xlim([self.x_extr.min(), self.x_extr.max()])
         plt.title(f"{n} function draws from fitted GP posterior")
 
-    def plot_gp(self, x_true=None, y_true=None, plot_conf=True, show_predictions=True):
+    def plot_gp(self, x_true=None, y_true=None, plot_conf=True, show_predictions=False, show_marginal=True):
         if plot_conf:
             std = np.sqrt(np.diag(self.C)[len(self.x):])
             plt.fill_between(self.x_extr, self.f_extr + 2 * std, self.f_extr - 2 * std, fc='lightgrey', alpha=.8,
@@ -132,7 +135,8 @@ class GP:
         plt.xlabel("Reading time (h)")
         plt.legend()
         plt.grid()
-        plt.text(0, 0, "$\log(p(y|X)) = {:.4f}$".format(self.logmarginal), transform=plt.gca().transAxes, fontsize=12)
+        if show_marginal:
+            plt.text(0, 0.01, "$\log(p(y|X)) = {:.4f}$".format(self.logmarginal), transform=plt.gca().transAxes, fontsize=16)
 
     def neg_log_likelyhood(self, yp):
         return (.5 * np.log(2 * np.pi * self.var) + (yp - self.f) ** 2 / 2 / self.var).sum()

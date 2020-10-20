@@ -23,6 +23,7 @@ setuptools.setup(
        'numpy',
        'scipy',
        'pandas',
-       'jax'
+       'jax',
+        'tqdm'
     ]
 )
