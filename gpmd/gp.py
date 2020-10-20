@@ -154,7 +154,8 @@ class GP:
 
 class CGP(GP):
     def __init__(self, X, y, sigmas, k, x, jitter=0, npoints=1000, expansion=.1, noutputs=2):
-        x_extr = self._function_draw_points(X[:, 0], x[:, 0] if len(x.shape) > 1 else x, npoints // noutputs)
+        self.nouts = noutputs
+        x_extr = self._function_draw_points(X[:, 0], x[:, 0] if len(x.shape) > 1 else x, npoints // noutputs, expansion=expansion)
         x_extr = x_extr[:, None]
         self.x_extr = [np.hstack((x_extr, np.ones_like(x_extr) * out)) for out in range(self.nouts)]
         self.x_extr = np.vstack(self.x_extr)
@@ -162,7 +163,6 @@ class CGP(GP):
         self.x = x
         self.X = X
         self.y = y
-        self.nouts = noutputs
         self.logmarginal, self.fstr, self.C = fit(X, y, k, sigmas, x_star, jitter=jitter)
 
     def plot_gp(self, l=0, x_true=None, y_true=None, plot_conf=True, show_predictions=False, show_marginal=False):
