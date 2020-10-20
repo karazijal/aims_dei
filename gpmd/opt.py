@@ -34,7 +34,7 @@ def fit_with_restarts(X, y, k, sigma, theta0, x_star, jitter=1e6, tol=1e5, n_res
         if n_restarts > 1:
             print("Fixed theta0 - will try once")
             n_restarts = 1
-        theta0_sampler = lambda x: theta0
+        theta0_sampler = lambda: theta0
 
     res = []
     for r_itr in tqdm(range(n_restarts)):
