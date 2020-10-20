@@ -168,7 +168,7 @@ class CGP(GP):
     def plot_gp(self, l=0, x_true=None, y_true=None, plot_conf=True, show_predictions=False, show_marginal=False):
         mask = self.x_extr[:, 1] == l
         if plot_conf:
-            std = np.sqrt(np.diag(self.C)[len(self.x):])
+            std = np.sqrt(np.diag(self.C)[len(self.x):])[mask]
             plt.fill_between(self.x_extr[:, 0][mask], self.f_extr[mask] + 2 * std, self.f_extr[mask] - 2 * std,
                              fc='lightgrey', alpha=.8,
                              label="$±2\sigma$")
