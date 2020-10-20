@@ -9,11 +9,19 @@ def _check_condition(K):
         print(f"k(X,X) is too close to singular {np.linalg.cond(K)}")
 
 
+def _noise(X, sigmas):
+    """Handle different noise for different output"""
+    if isinstance(sigmas, (float, int)) or len(sigmas) == 1:
+        return np.eye(len(X)) * sigmas ** 2
+    else:
+        return np.diag(np.array([sigmas[int(i)] ** 2 for i in X[:, 1]]))
+
+
 def marginal_only(X, y, k, sigma, jitter=0):
     """
     Fit GP, returning only log marginal likelyhood
     """
-    K = k(X, X) + (sigma ** 2 + jitter) * np.eye(X.shape[0])
+    K = k(X, X) + _noise(X, sigma) + jitter * np.eye(X.shape[0])
     _check_condition(K)
     L = np.linalg.cholesky(K)
     alpha = np.linalg.solve(K, y)
@@ -28,7 +36,7 @@ def slow(X, y, k, sigma, x_star, jitter=0):
     Ended up having to use Cholesky factor anyway as calculating determinants was returning results
     either entirely or _very_ close to zero causing `log` to blow up.
     """
-    K = k(X, X) + (sigma ** 2 + jitter) * np.eye(X.shape[0])
+    K = k(X, X) + _noise(X, sigma) + jitter * np.eye(X.shape[0])
     _check_condition(K)
     det_factor = np.log(np.diag(np.linalg.cholesky(K))).sum()
     Ki = np.linalg.pinv(K)
@@ -39,9 +47,9 @@ def slow(X, y, k, sigma, x_star, jitter=0):
     return logmarlike, fstr, covf
 
 
-def fit(X, y, k, sigma, x_star, jitter=0):
-    """Fit GP using Cholesky decom and pseudo inverse"""
-    K = k(X, X) + (sigma ** 2 + jitter) * np.eye(X.shape[0])
+def fit(X, y, k, sigmas, x_star, jitter=0):
+    """Fit GP using Cholesky decom and pseudo inverse with different noise"""
+    K = k(X, X) + _noise(X, sigmas) + jitter * np.eye(X.shape[0])
     _check_condition(K)
     try:
         L = np.linalg.cholesky(K)
@@ -68,6 +76,7 @@ def fit(X, y, k, sigma, x_star, jitter=0):
 
 class GP:
     """GP implementation that expands x_star with extra points for increased resolution"""
+
     @staticmethod
     def _function_draw_points(X, x, npoints, expansion=.1):
         ma = X.max(axis=0)
@@ -136,7 +145,54 @@ class GP:
         plt.legend()
         plt.grid()
         if show_marginal:
-            plt.text(0, 0.01, "$\log(p(y|X)) = {:.4f}$".format(self.logmarginal), transform=plt.gca().transAxes, fontsize=16)
+            plt.text(0, 0.01, "$\log(p(y|X)) = {:.4f}$".format(self.logmarginal), transform=plt.gca().transAxes,
+                     fontsize=16)
 
     def neg_log_likelyhood(self, yp):
         return (.5 * np.log(2 * np.pi * self.var) + (yp - self.f) ** 2 / 2 / self.var).sum()
+
+
+class CGP(GP):
+    def __init__(self, X, y, sigmas, k, x, jitter=0, npoints=1000, expansion=.1, noutputs=2):
+        x_extr = self._function_draw_points(X[:, 0], x[:, 0] if len(x.shape) > 1 else x, npoints // noutputs)
+        x_extr = x_extr[:, None]
+        self.x_extr = [np.hstack((x_extr, np.ones_like(x_extr) * out)) for out in range(self.nouts)]
+        self.x_extr = np.vstack(self.x_extr)
+        x_star = np.concatenate((x, self.x_extr))
+        self.x = x
+        self.X = X
+        self.y = y
+        self.nouts = noutputs
+        self.logmarginal, self.fstr, self.C = fit(X, y, k, sigmas, x_star, jitter=jitter)
+
+    def plot_gp(self, l=0, x_true=None, y_true=None, plot_conf=True, show_predictions=False, show_marginal=False):
+        mask = self.x_extr[:, 1] == l
+        if plot_conf:
+            std = np.sqrt(np.diag(self.C)[len(self.x):])
+            plt.fill_between(self.x_extr[:, 0][mask], self.f_extr[mask] + 2 * std, self.f_extr[mask] - 2 * std,
+                             fc='lightgrey', alpha=.8,
+                             label="$±2\sigma$")
+            plt.fill_between(self.x_extr[:, 0][mask], self.f_extr[mask] + std, self.f_extr[mask] - std, fc='grey',
+                             alpha=.3, label="$±\sigma$")
+        if x_true is not None and y_true is not None:
+            plt.plot(x_true[:, 0][x_true[:, 1] == l], y_true[x_true[:, 1] == l], 'r--', label='True $f$ (Test)')
+
+        plt.plot(self.x_extr[:, 0][mask], self.f_extr[mask], 'g-', label='$f_{*}$ (Predictive Post. Mean)')
+
+        plt.plot(self.X[:, 0][self.X[:, 1] == l], self.y[self.X[:, 1] == l], 'b+', label='$y(X)$ (Training)')
+        if show_predictions:
+            plt.plot(self.x[:, 0][self.x[:, 1] == l], self.f[self.x[:, 1] == l], 'mo',
+                     label='Predictions for testing points', markerfacecolor='none')
+        if len(self.x_extr):
+            plt.xlim([self.x_extr[:, 0][mask].min(), self.x_extr[:, 0][mask].max()])
+        plt.xlabel("Reading time (h)")
+        plt.legend()
+        plt.grid()
+        if show_marginal:
+            plt.text(0, 0.01, "$\log(p(y|X)) = {:.4f}$".format(self.logmarginal), transform=plt.gca().transAxes,
+                     fontsize=16)
+
+    def neg_log_likelyhood(self, yp, mask=None):
+        if mask is None:
+            return super().neg_log_likelyhood(yp)
+        return (.5 * np.log(2 * np.pi * self.var[mask]) + (yp - self.f[mask]) ** 2 / 2 / self.var[mask]).sum()
