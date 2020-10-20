@@ -13,7 +13,7 @@ LABELS = {
 }
 
 
-def sontomet_dataset():
+def sotonmet_dataset():
     f = io.StringIO(requests.get(URL).content.decode())
     data = pd.read_csv(f, parse_dates=True)
     t = pd.to_datetime(data[LABELS['time']])
