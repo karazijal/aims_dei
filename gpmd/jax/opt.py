@@ -76,7 +76,7 @@ def fit_with_restarts2(X, y, k, sigma, theta0, x_star, jitter=1e6, tol=1e5, n_re
     res = []
     for r_itr in tqdm(range(n_restarts)):
         theta = theta0_sampler()
-        theta, minnegmarg, info = fmin_l_bfgs_b(f, theta, disp=True, callback=optclb(verb=verb, f=f))
+        theta, minnegmarg, info = fmin_l_bfgs_b(fun, theta, disp=True, callback=optclb(verb=verb, f=f), approx_grad=False, fprime=None)
         res.append((theta, minnegmarg, info))
         if verb:
             print(f"{r_itr} {minnegmarg} {info['nit']} {theta_transform(theta)}")
