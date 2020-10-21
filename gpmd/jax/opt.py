@@ -1,3 +1,4 @@
+import numpy as np
 import jax.numpy as npj
 from jax import value_and_grad
 import scipy.optimize as optimize
@@ -61,6 +62,10 @@ def fit_with_restarts2(X, y, k, sigma, theta0, x_star, jitter=1e6, tol=1e5, n_re
         logmar = jax_marginal_only(X, y, lambda A, B: k(A, B, *theta), sigma, jitter=jitter)
         return -logmar
 
+    def fun(theta):
+        f, df =obj_fun(theta)
+        return np.array(f), np.array(df)
+
     theta0_sampler = theta0
     if not callable(theta0):
         if n_restarts > 1:
@@ -71,7 +76,7 @@ def fit_with_restarts2(X, y, k, sigma, theta0, x_star, jitter=1e6, tol=1e5, n_re
     res = []
     for r_itr in tqdm(range(n_restarts)):
         theta = theta0_sampler()
-        theta, minnegmarg, info = fmin_l_bfgs_b(obj_fun, theta, disp=True, callback=optclb(verb=verb, f=f))
+        theta, minnegmarg, info = fmin_l_bfgs_b(f, theta, disp=True, callback=optclb(verb=verb, f=f))
         res.append((theta, minnegmarg, info))
         if verb:
             print(f"{r_itr} {minnegmarg} {info['nit']} {theta_transform(theta)}")
