@@ -1,6 +1,7 @@
 import jax.numpy as npj
 from jax import value_and_grad
 import scipy.optimize as optimize
+from scipy.optimize.lbfgsb import fmin_l_bfgs_b
 
 from tqdm.auto import tqdm
 
@@ -48,6 +49,35 @@ def fit_with_restarts(X, y, k, sigma, theta0, x_star, jitter=1e6, tol=1e5, n_res
     opt_res = min(res, key=lambda r: r.fun)
     final_theta = theta_transform(opt_res.x)
     print(f"Result: {final_theta} with {opt_res.fun} using {opt_res.nit} itrs")
+    mdl = GPimp(X, y, sigma, lambda A, B: k(A, B, *final_theta), x_star, jitter=jitter, **kwargs)
+    return mdl, final_theta
+
+
+def fit_with_restarts2(X, y, k, sigma, theta0, x_star, jitter=1e6, tol=1e5, n_restarts=1, theta_transform=npj.exp,
+                      GPimp=GP, f=3, verb=False, **kwargs):
+    @value_and_grad
+    def obj_fun(theta):
+        theta = theta_transform(theta)
+        logmar = jax_marginal_only(X, y, lambda A, B: k(A, B, *theta), sigma, jitter=jitter)
+        return -logmar
+
+    theta0_sampler = theta0
+    if not callable(theta0):
+        if n_restarts > 1:
+            print("Fixed theta0 - will try once")
+            n_restarts = 1
+        theta0_sampler = lambda: theta0
+
+    res = []
+    for r_itr in tqdm(range(n_restarts)):
+        theta = theta0_sampler()
+        theta, minnegmarg, info = fmin_l_bfgs_b(obj_fun, theta, disp=True, callback=optclb(verb=verb, f=f))
+        res.append((theta, minnegmarg, info))
+        if verb:
+            print(f"{r_itr} {minnegmarg} {info['nit']} {theta_transform(theta)}")
+    opt_res = min(res, key=lambda r: r[1])
+    final_theta = theta_transform(opt_res[0])
+    print(f"Result: {final_theta} with {opt_res[1]} using {opt_res[2]['nit']} itrs")
     mdl = GPimp(X, y, sigma, lambda A, B: k(A, B, *final_theta), x_star, jitter=jitter, **kwargs)
     return mdl, final_theta
 
